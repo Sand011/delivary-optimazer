@@ -1,0 +1,92 @@
+delivery-optimizer/
+├── app.py                      # Backend Flask
+├── optimisation.py             # Script d'optimisation
+├── requirements.txt            # Dépendances Python
+├── templates/
+│   └── map.html               # Page web (frontend)
+└── static/
+    └── script.js              # JavaScript pour la carte
+from flask import Flask, render_template, jsonify, request
+import os
+from optimisation import optimize_delivery
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return render_template('map.html')
+
+@app.route('/optimize', methods=['POST'])
+def optimize():
+    data = request.json
+    route = optimize_delivery(data["locations"], data["demands"], data["vehicle_capacity"])
+    return jsonify({"route": route})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
+import requests
+
+def optimize_delivery(locations, demands, vehicle_capacity):
+    def create_distance_matrix():
+        matrix = []
+        for i in range(len(locations)):
+            row = []
+            for j in range(len(locations)):
+                row.append(get_osrm_distance(locations[i], locations[j]))
+            matrix.append(row)
+        return matrix
+
+    def get_osrm_distance(start, end):
+        url = f"http://router.project-osrm.org/route/v1/car/{start[1]},{start[0]};{end[1]},{end[0]}"
+        response = requests.get(url).json()
+        return response["routes"][0]["distance"]  # Distance en mètres
+
+    distance_matrix = create_distance_matrix()
+    manager = pywrapcp.RoutingIndexManager(len(locations), 1, 0)
+    routing = pywrapcp.RoutingModel(manager)
+    # ... (voir le code complet précédent pour la suite)
+flask==2.0.1
+ortools==9.4.1874
+requests==2.26.0
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delivery Optimizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+    <div id="map" style="height: 600px;"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delivery Optimizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+    <div id="map" style="height: 600px;"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
+const map = L.map('map').setView([14.5995, 120.9842], 13);  // Centré sur Manille
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+function optimize() {
+    const demoData = {
+        locations: [[14.5995, 120.9842], [14.5506, 121.0143], [14.5898, 120.9748]],
+        demands: [0, 3, 6],
+        vehicle_capacity: 10
+    };
+    fetch('/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoData)
+    }).then(response => response.json())
+      .then(data => console.log(data));
+}
